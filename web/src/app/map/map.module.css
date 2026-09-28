@@ -1,0 +1,64 @@
+.wrap { position: relative; height: calc(100dvh - var(--header-h)); overflow: hidden; }
+.map { position: absolute; inset: 0; }
+.loading { position: absolute; top: 0; inset-inline: 0; z-index: 5; }
+
+.filters {
+  position: absolute; top: 16px; inset-inline-start: 16px; z-index: 4; width: 340px; max-width: calc(100% - 32px);
+  background: var(--surface); border: 1px solid var(--rule); border-radius: var(--radius-m); box-shadow: var(--shadow-float);
+}
+.filtersHead { display: flex; align-items: center; justify-content: space-between; padding: 10px 10px 10px 16px; }
+.filtersHead h1 { font-size: 17px; margin: 0; font-weight: 600; letter-spacing: -0.01em; }
+.narrow { display: none; }
+.filters[data-open="true"] .filtersHead, .filters[data-open="auto"] .filtersHead { border-bottom: 1px solid var(--rule); }
+.filtersBody { padding: 14px 16px 12px; display: flex; flex-direction: column; gap: 14px; max-height: calc(100dvh - var(--header-h) - 120px); overflow: auto; }
+.filtersBody :global(.seg) { width: 100%; }
+.filtersBody :global(.seg button) { flex: 1; padding: 0 6px; }
+.filtersBody :global(.combo input) { width: 100% !important; }
+.filtersBody :global(.combo) { width: 100%; }
+
+.legend {
+  position: absolute; inset-inline-end: 16px; bottom: 32px; z-index: 3; width: 280px;
+  background: var(--surface); border: 1px solid var(--rule); border-radius: var(--radius-m); box-shadow: var(--shadow-float);
+  padding: 12px 14px; font-size: 13px;
+}
+.legend[data-hidden="true"] { display: none; }
+.legendRow { display: flex; gap: 6px; align-items: baseline; margin-bottom: 10px; }
+.legendRow strong { font-size: 18px; font-weight: 600; }
+.scaleLabel { color: var(--ink-2); margin-bottom: 4px; }
+.scale { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; height: 10px; }
+.scale i { border-radius: 2px; }
+.scaleTicks { display: flex; justify-content: space-between; color: var(--muted); font-size: 12px; margin-top: 3px; }
+.keyRow { display: flex; flex-direction: column; gap: 4px; margin-top: 10px; color: var(--ink-2); }
+.keyRow span { display: inline-flex; align-items: center; gap: 8px; }
+.dotSolid, .dotHollow { width: 11px; height: 11px; border-radius: 50%; display: inline-block; }
+.dotSolid { background: var(--seq-5); }
+.dotHollow { border: 1.5px solid var(--seq-5); background: color-mix(in srgb, var(--seq-5) 18%, transparent); }
+
+.drawer {
+  position: absolute; top: 16px; inset-inline-end: 60px; bottom: 16px; z-index: 4; width: 380px; max-width: calc(100% - 32px);
+  background: var(--surface); border: 1px solid var(--rule); border-radius: var(--radius-m); box-shadow: var(--shadow-float);
+  display: flex; flex-direction: column;
+}
+.drawerHead { display: flex; justify-content: space-between; gap: 12px; padding: 16px 16px 12px; border-bottom: 1px solid var(--rule); }
+.drawerHead h2 { font-size: 18px; margin: 0 0 2px; }
+.drawerHead p { margin: 0; font-size: 13px; }
+.note { margin: 0; padding: 10px 16px; font-size: 13px; color: var(--ink-2); background: var(--surface-2); border-bottom: 1px solid var(--rule); }
+.drawerBody { overflow: auto; padding: 4px 16px 16px; }
+.count { font-size: 13px; color: var(--muted); margin: 10px 0 4px; }
+.dealList { list-style: none; margin: 0; padding: 0; }
+.dealList li { padding: 11px 0; border-bottom: 1px solid var(--rule); }
+.dealList li:last-child { border-bottom: 0; }
+.dealTop { display: flex; justify-content: space-between; gap: 12px; }
+.dealTop strong { font-weight: 600; }
+.dealMeta { display: flex; flex-wrap: wrap; gap: 4px 12px; font-size: 13px; color: var(--ink-2); margin-top: 2px; }
+.dealCls { font-size: 12.5px; color: var(--muted); margin-top: 2px; }
+
+@media (max-width: 760px) {
+  .filters[data-open="auto"] .filtersBody { display: none; }
+  .filters[data-open="auto"] .filtersHead { border-bottom: 0; }
+  .wide { display: none; }
+  .narrow { display: inline; }
+  .filters { top: 10px; inset-inline: 10px; width: auto; }
+  .legend { inset-inline-end: 10px; bottom: 28px; width: 220px; }
+  .drawer { top: auto; inset-inline: 0; bottom: 0; width: auto; max-width: none; height: 60%; border-radius: var(--radius-m) var(--radius-m) 0 0; }
+}
