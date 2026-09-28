@@ -3,7 +3,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { DuckDBInstance, type DuckDBValue } from "@duckdb/node-api";
 
-// Deployments ship a copy in web/data/ (see scripts/sync-db.sh); local dev reads the pipeline's output directly.
+// Deployments ship a copy in web/data/ (scripts/sync-db.sh stages it, prebuild joins it); local dev reads the pipeline's output directly.
 const BUNDLED = path.resolve(process.cwd(), "data/site.duckdb");
 const DB_PATH = process.env.NADLAN_DB ?? (fs.existsSync(BUNDLED) ? BUNDLED : path.resolve(process.cwd(), "../data/site.duckdb"));
 

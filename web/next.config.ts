@@ -2,8 +2,9 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   serverExternalPackages: ["@duckdb/node-api", "@duckdb/node-bindings"],
-  // The database is opened by path at runtime, so the tracer can't see it; include it in every server bundle.
-  outputFileTracingIncludes: { "/**": ["./data/site.duckdb"] },
+  // The tracer can't see either of these: the database is opened by path at runtime, and duckdb.node loads
+  // libduckdb.so from its own folder. Include both in every server bundle (Vercel runs linux-x64).
+  outputFileTracingIncludes: { "/**": ["./data/site.duckdb", "./node_modules/@duckdb/node-bindings-linux-x64/*"] },
 };
 
 export default nextConfig;

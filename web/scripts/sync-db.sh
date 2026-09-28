@@ -1,6 +1,7 @@
 #!/bin/sh
-# Copy the pipeline's database into web/data/ so `vercel deploy` uploads it with the app.
+# Stage the pipeline's database for `vercel deploy`. Vercel rejects uploaded files over 100 MB, so the file
+# goes up in parts and `npm run build` (prebuild) joins them back into data/site.duckdb.
 set -e
 cd "$(dirname "$0")/.."
-mkdir -p data
-cp ../data/site.duckdb data/site.duckdb
+rm -rf data && mkdir -p data/parts
+split -b 90m ../data/site.duckdb data/parts/site.duckdb.part-

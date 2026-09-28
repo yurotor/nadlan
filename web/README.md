@@ -17,6 +17,20 @@ cd web && npm install && npm run dev      # http://localhost:3000
 The app opens `../data/site.duckdb` read-only (override with `NADLAN_DB`). Restart the server after
 rebuilding the file. Basemap tiles come from OpenFreeMap (no key).
 
+## Deploy
+
+Hosted on Vercel (project `yurotors-projects/nadlan`, https://nadlan-iota.vercel.app). There's no database
+service: the DuckDB file ships inside every function bundle. Deploys go from this machine with the CLI,
+because `data/` isn't in git.
+
+```sh
+./scripts/sync-db.sh          # stage ../data/site.duckdb as <100 MB parts (Vercel's per-file upload limit)
+vercel deploy                 # preview; add --prod for production
+```
+
+On Vercel, `prebuild` (scripts/join-db.sh) joins the parts into `data/site.duckdb`, and `next.config.ts` adds
+that file and DuckDB's `libduckdb.so` to the traced function files. Neither is picked up automatically.
+
 ## Languages
 
 Hebrew (right-to-left) is the default and English is the alternative. The choice is stored in the `lang` cookie
