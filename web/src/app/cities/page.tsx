@@ -2,6 +2,8 @@ import type { Metadata } from "next";
 import { cityRankings } from "@/lib/queries";
 import { getLang } from "@/lib/lang.server";
 import { CityRankings } from "./CityRankings";
+import { RentYields } from "./RentYields";
+import { rentAllCities } from "@/lib/rent";
 
 export async function generateMetadata(): Promise<Metadata> {
   const { t } = await getLang();
@@ -9,7 +11,7 @@ export async function generateMetadata(): Promise<Metadata> {
 }
 
 export default async function CitiesPage() {
-  const [rows, { t }] = await Promise.all([cityRankings(), getLang()]);
+  const [rows, rent, { lang, t }] = await Promise.all([cityRankings(), rentAllCities(), getLang()]);
   const n = rows.length.toLocaleString("en-US");
   return (
     <main className="page">
@@ -23,6 +25,7 @@ export default async function CitiesPage() {
         </p>
       </div>
       <CityRankings rows={rows} />
+      <RentYields rows={rent} lang={lang} t={t} />
     </main>
   );
 }

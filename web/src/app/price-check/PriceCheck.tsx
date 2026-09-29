@@ -7,14 +7,18 @@ import { useJson } from "@/lib/useJson";
 import { useLocalities } from "@/lib/useLocalities";
 import { CityPicker } from "@/components/CityPicker";
 import { EChart, axisStyle, base, type Tokens } from "@/components/EChart";
-import { cityName, fmtDate, fmtInt, fmtShekel, fmtShekelAxis, fmtShekelShort } from "@/lib/format";
+import { cityName, fmtDate, fmtInt, fmtQuarter, fmtShekel, fmtShekelAxis, fmtShekelShort } from "@/lib/format";
 import { useLang } from "@/components/LangProvider";
 
 type Resp = {
   summary: { n: number; ppsqm_q: number[] | null; price_q: number[] | null };
-  comps: { id: string; date: string; street: string | null; house: string | null; rooms: number | null; area: number; price: number; ppsqm: number; year_built: number | null; lat: number; lon: number }[];
+  comps: { id: string; date: string; street: string | null; house: string | null; rooms: number | null; area: number; price: number; ppsqm: number; adj: number; year_built: number | null; lat: number; lon: number }[];
   hist: { b: number; n: number }[];
   street: { n: number; ppsqm: number | null } | null;
+  /** Local price level: current quarter, where the trend comes from, and its change over the period. */
+  index: { current_q: string; source: "locality" | "district" | "country"; change: number | null } | null;
+  /** CBS average rent for this rooms group, big cities only. */
+  rent: { rooms: string; rent: number; rent_q: string } | null;
   months: number;
 };
 
@@ -87,9 +91,15 @@ export function PriceCheck() {
     if (!askPpsqm || !q) return null;
     const pct = percentile(askPpsqm, q);
     const tone = pct >= 75 ? tr("on the high side", "גבוה יחסית") : pct <= 25 ? tr("on the low side", "נמוך יחסית") : tr("within the typical range", "נמצא בטווח המקובל");
-    return { pct, tone };
+    const diff = askPpsqm / q[2] - 1;
+    return { pct, tone, diff };
   }, [askPpsqm, q, tr]);
   const S = (v: number | null) => <bdi>{fmtShekel(v, lang)}</bdi>;
+  const Y = (v: number) => <bdi className="num">{(v * 100).toFixed(1)}%</bdi>;
+  const P = (v: number) => <bdi className="num">{Math.abs(Math.round(v * 100))}%</bdi>;
+  const idx = data?.index;
+  const quarter = idx ? tr(`Q${Math.floor(Number(idx.current_q.slice(5, 7)) / 3) + 1} ${idx.current_q.slice(0, 4)}`, `רבעון ${Math.floor(Number(idx.current_q.slice(5, 7)) / 3) + 1} ${idx.current_q.slice(0, 4)}`) : "";
+  const trendOf = idx?.source === "locality" ? cityName(city, lang) : idx?.source === "district" ? tr("the sub-district", "הנפה") : tr("the whole country", "כל הארץ");
   const roomsLabel = s.rooms === "6" ? "\u20666+\u2069" : s.rooms;
   const range = (a: number, b: number) =>
     lang === "he" && a >= 1e6 && b >= 1e6
@@ -175,11 +185,27 @@ export function PriceCheck() {
                   <>חציון <strong className="num">{S(q[2] * area)}</strong>, לפי {S(q[2])} למ״ר. על סמך {fmtInt(data.summary.n)} עסקאות דומות ב-{data.months} החודשים האחרונים; הטווח הוא המחצית האמצעית שלהן.</>,
                 )}
               </p>
+              {idx && (
+                <p className="chart-note">
+                  {tr(
+                    <>Older sales are adjusted to {quarter} prices using the price trend of {trendOf}{idx.change != null && (Math.abs(idx.change) < 0.005 ? <>, which was flat over the period</> : <>, where prices {idx.change > 0 ? "rose" : "fell"} {P(idx.change)} over the period</>)}.</>,
+                    <>עסקאות ישנות מותאמות למחירי {quarter} לפי מגמת המחירים של {trendOf}{idx.change != null && (Math.abs(idx.change) < 0.005 ? <>, שהייתה יציבה בתקופה</> : <>, שבה המחירים {idx.change > 0 ? "עלו" : "ירדו"} ב-{P(idx.change)} בתקופה</>)}.</>,
+                  )}
+                </p>
+              )}
               {verdict && ask && (
                 <p className="pc-verdict">
                   {tr(
-                    <>The asking price of <strong className="num">{S(ask)}</strong> ({S(askPpsqm)} per m²) is {verdict.tone}: higher per m² than about <strong>{verdict.pct}%</strong> of comparable sales.</>,
-                    <>המחיר המבוקש, <strong className="num">{S(ask)}</strong> ({S(askPpsqm)} למ״ר), {verdict.tone}: גבוה למ״ר מכ-<strong>{verdict.pct}%</strong> מהעסקאות הדומות.</>,
+                    <>The asking price of <strong className="num">{S(ask)}</strong> ({S(askPpsqm)} per m²) is {verdict.tone}: {Math.abs(verdict.diff) < 0.03 ? <>about the median</> : <><strong>{P(verdict.diff)}</strong> {verdict.diff > 0 ? "above" : "below"} the median</>} of comparable sales at today&rsquo;s prices, and higher per m² than about <strong>{verdict.pct}%</strong> of them.</>,
+                    <>המחיר המבוקש, <strong className="num">{S(ask)}</strong> ({S(askPpsqm)} למ״ר), {verdict.tone}: {Math.abs(verdict.diff) < 0.03 ? <>בערך כמו החציון</> : <><strong>{P(verdict.diff)}</strong> {verdict.diff > 0 ? "מעל החציון" : "מתחת לחציון"}</>} של העסקאות הדומות במחירי היום, וגבוה למ״ר מכ-<strong>{verdict.pct}%</strong> מהן.</>,
+                  )}
+                </p>
+              )}
+              {data.rent && (
+                <p className="chart-note">
+                  {tr(
+                    <>For rent: {data.rent.rooms.replace("-", "–")}-room homes in {cityName(city, lang)} rented for {S(data.rent.rent)} a month on average in {fmtQuarter(data.rent.rent_q, lang)} (Central Bureau of Statistics). A year of that is a gross yield of <strong>{Y(12 * data.rent.rent / (ask ?? q[2] * area))}</strong> {ask ? "at the asking price" : "at the median price"}{ask && <>, {Y(12 * data.rent.rent / (q[2] * area))} at the median</>}.</>,
+                    <>להשכרה: דירות של <bdi>{data.rent.rooms.replace("-", "–")}</bdi> חדרים ב{cityName(city, lang)} הושכרו ב{fmtQuarter(data.rent.rent_q, lang)} בממוצע ב-{S(data.rent.rent)} לחודש (הלשכה המרכזית לסטטיסטיקה). שנה של שכירות כזו היא תשואה ברוטו של <strong>{Y(12 * data.rent.rent / (ask ?? q[2] * area))}</strong> {ask ? "לפי המחיר המבוקש" : "לפי המחיר החציוני"}{ask && <>, ו-{Y(12 * data.rent.rent / (q[2] * area))} לפי החציון</>}.</>,
                   )}
                 </p>
               )}
@@ -199,7 +225,7 @@ export function PriceCheck() {
             </section>
             <section className="panel" style={{ marginTop: 20 }}>
               <div className="section-head" style={{ marginBottom: 4 }}>
-                <h3>{tr("Price per m² of comparable sales", "מחיר למ״ר בעסקאות הדומות")}</h3>
+                <h3>{tr("Price per m² of comparable sales, at today’s prices", "מחיר למ״ר בעסקאות הדומות, במחירי היום")}</h3>
                 <div className="legend">
                   <span><i style={{ background: "var(--ink-2)", width: 2, height: 14 }} />{tr("Median", "חציון")}</span>
                   {askPpsqm && <span><i style={{ background: "var(--s2)", width: 2, height: 14 }} />{tr("Asking price", "מחיר מבוקש")}</span>}
@@ -218,6 +244,7 @@ export function PriceCheck() {
                     <thead><tr>
                       <th>{tr("Date", "תאריך")}</th><th>{tr("Address", "כתובת")}</th><th className="r">{tr("Rooms", "חדרים")}</th><th className="r">{tr("m²", "מ״ר")}</th>
                       <th className="r">{tr("Built", "שנת בנייה")}</th><th className="r">{tr("Price", "מחיר")}</th><th className="r">{tr("₪ / m²", "₪ למ״ר")}</th>
+                      <th className="r" title={tr("Price per m² adjusted to today’s market level", "מחיר למ״ר מותאם לרמת המחירים היום")}>{tr("Today, ₪ / m²", "היום, ₪ למ״ר")}</th>
                       <th><span className="visually-hidden">{tr("Map", "מפה")}</span></th>
                     </tr></thead>
                     <tbody>
@@ -230,6 +257,7 @@ export function PriceCheck() {
                           <td className="r">{c.year_built ?? "–"}</td>
                           <td className="r">{S(c.price)}</td>
                           <td className="r">{S(c.ppsqm)}</td>
+                          <td className="r">{S(Math.round(c.adj))}</td>
                           <td><Link className="btn ghost" style={{ height: 28, padding: "0 8px" }} href={`/map?lat=${c.lat}&lon=${c.lon}&z=17&from=1998`} aria-label={tr("Show on map", "הצגה במפה")}>{tr("Map", "מפה")}</Link></td>
                         </tr>
                       ))}

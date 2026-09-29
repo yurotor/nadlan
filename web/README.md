@@ -33,6 +33,16 @@ vercel deploy                 # preview; add --prod for production
 On Vercel, `prebuild` (scripts/join-db.sh) joins the parts into `data/site.duckdb`, and `next.config.ts` adds
 that file and DuckDB's `libduckdb.so` to the traced function files. Neither is picked up automatically.
 
+## Homes for sale on the map
+
+The map's "Homes for sale" section has two sources, both compared with recent sales by `src/lib/listings.ts`
+(asking ₪/m² against the median time-adjusted ₪/m² of comparable sales within 750 m, else the city):
+
+- **My listings**: added by hand or imported as CSV lines, stored in the browser (`localStorage`), placed on the
+  map from our deals' addresses by `/api/listings/compare`. Works on the deployed site too.
+- **Yad2 snapshot**: a local demo only. `/api/forsale` reads `../data/demo.duckdb` (see `pipeline/README.md`),
+  which `src/lib/db.ts` attaches when the file exists. It isn't deployed, so on Vercel the option doesn't appear.
+
 ## Languages
 
 Hebrew (right-to-left) is the default and English is the alternative. The choice is stored in the `lang` cookie

@@ -16,8 +16,8 @@ export default async function PriceCheckPage() {
         <h1>{t("Is this price fair?", "המחיר הוגן?")}</h1>
         <p>
           {t(
-            "Describe a home and see what similar homes in the same city actually sold for: same room count (±½), similar size (±25%), recent sales only. Add an asking price to see where it falls.",
-            "מתארים דירה ורואים בכמה נמכרו בפועל דירות דומות באותו יישוב: אותו מספר חדרים (±½), שטח דומה (±25%), מכירות אחרונות בלבד. אפשר להוסיף מחיר מבוקש ולראות איפה הוא ממוקם.",
+            "Describe a home and see what similar homes in the same city actually sold for: same room count (±½), similar size (±25%), recent sales only, adjusted to today’s prices. Add an asking price, from any listing, to see how it compares.",
+            "מתארים דירה ורואים בכמה נמכרו בפועל דירות דומות באותו יישוב: אותו מספר חדרים (±½), שטח דומה (±25%), מכירות אחרונות בלבד, מותאמות למחירי היום. אפשר להוסיף מחיר מבוקש מכל מודעה ולראות איך הוא משתווה.",
           )}
         </p>
       </div>

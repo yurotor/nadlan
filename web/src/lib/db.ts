@@ -7,10 +7,22 @@ import { DuckDBInstance, type DuckDBValue } from "@duckdb/node-api";
 const BUNDLED = path.resolve(process.cwd(), "data/site.duckdb");
 const DB_PATH = process.env.NADLAN_DB ?? (fs.existsSync(BUNDLED) ? BUNDLED : path.resolve(process.cwd(), "../data/site.duckdb"));
 
+// Local-only demo data (a one-time Yad2 for-sale snapshot, pipeline/build_demo.py). Deploys don't ship it,
+// so on the public site the for-sale layer is simply absent.
+const DEMO_PATH = process.env.NADLAN_DEMO_DB ?? path.resolve(process.cwd(), "../data/demo.duckdb");
+export const hasDemo = fs.existsSync(DEMO_PATH);
+
 const g = globalThis as unknown as { __nadlanDb?: Promise<DuckDBInstance> };
 
 function instance() {
-  g.__nadlanDb ??= DuckDBInstance.create(DB_PATH, { access_mode: "READ_ONLY", threads: "4" });
+  g.__nadlanDb ??= DuckDBInstance.create(DB_PATH, { access_mode: "READ_ONLY", threads: "4" }).then(async (db) => {
+    if (hasDemo) {
+      const conn = await db.connect();
+      await conn.run(`ATTACH '${DEMO_PATH.replaceAll("'", "''")}' AS demo (READ_ONLY)`);
+      conn.closeSync();
+    }
+    return db;
+  });
   return g.__nadlanDb;
 }
 

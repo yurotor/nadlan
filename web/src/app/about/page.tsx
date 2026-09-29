@@ -112,6 +112,14 @@ export default async function About() {
           <li>{t("The median is used everywhere instead of the average, so a handful of luxury sales cannot distort a figure.", "בכל מקום משמש החציון ולא הממוצע, כך שמספר קטן של עסקאות יוקרה לא מעוות את התמונה.")}</li>
           <li>{t("Price per m² uses the registered area of the unit. Balconies, gardens and storage are recorded inconsistently.", "המחיר למ״ר מחושב לפי השטח הרשום של היחידה. מרפסות, גינות ומחסנים נרשמים באופן לא אחיד.")}</li>
           <li>{t("Areas with few sales produce noisy medians. Figures based on fewer than 5 sales are hidden.", "באזורים עם מעט עסקאות החציון רועש. נתונים שמבוססים על פחות מ-5 עסקאות מוסתרים.")}</li>
+          <li>{t(
+            "The price check is the exception to nominal prices: it brings older comparable sales to today's market level with a local price index, the median price per m² over three quarters, from the city when it has at least 45 sales in them, otherwise from its sub-district or the whole country.",
+            "בדיקת המחיר היא החריג למחירים הנומינליים: היא מביאה עסקאות דומות ישנות לרמת המחירים של היום לפי מדד מחירים מקומי, החציון של המחיר למ״ר בשלושה רבעונים, מהיישוב כשיש בו לפחות 45 עסקאות בהם, ואחרת מהנפה או מכל הארץ.",
+          )}</li>
+          <li>{t(
+            "Rents come from the Central Bureau of Statistics (Price Statistics Monthly, table 4.9): average rent by rooms for the 18 largest cities, over all leases in the consumer price index rent survey. Gross yield is a year of that rent divided by the median sale price of the same size group in the last four quarters, before costs, vacancies and tax.",
+            "שכר הדירה מגיע מהלשכה המרכזית לסטטיסטיקה (ירחון סטטיסטיקה של מחירים, לוח 4.9): שכר דירה ממוצע לפי מספר חדרים ב-18 הערים הגדולות, על פני כל החוזים בסקר שכר הדירה של מדד המחירים לצרכן. התשואה ברוטו היא שנה של שכר דירה חלקי מחיר המכירה החציוני של דירות באותו גודל בארבעת הרבעונים האחרונים, לפני הוצאות, תקופות ללא שוכר ומס.",
+          )}</li>
         </ul>
       </section>
     </main>

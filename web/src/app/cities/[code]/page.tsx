@@ -4,9 +4,11 @@ import type { Metadata } from "next";
 import { qc, q1c } from "@/lib/db";
 import { getLang } from "@/lib/lang.server";
 import type { Lang, T } from "@/lib/i18n";
-import { cityName, fmtDate, fmtInt, fmtPct, fmtShekel } from "@/lib/format";
+import { cityName, fmtDate, fmtInt, fmtPct, fmtQuarter, fmtShekel } from "@/lib/format";
 import { districtLabel, natureLabel } from "@/lib/natures";
 import { CityCharts } from "./CityCharts";
+import { rentForCity } from "@/lib/rent";
+import { RentTable, CBS_RENT_URL } from "@/components/RentTable";
 
 type Loc = {
   code: number; name_he: string; name_en: string | null; district: string | null; n_all: number; n_clean: number; n_12m: number;
@@ -34,7 +36,7 @@ export default async function CityPage({ params }: { params: Promise<{ code: str
   if (!loc) notFound();
 
   const recent = `date >= (SELECT max(date) FROM tx) - INTERVAL 24 MONTH`;
-  const [yearly, rooms, hist, streets, latest, mix] = await Promise.all([
+  const [yearly, rooms, hist, streets, latest, mix, rent] = await Promise.all([
     qc<{ y: number; n: number; n_all: number; price: number | null; ppsqm: number | null }>(
       `SELECT year(date)::INT AS y, count(*) FILTER (clean)::INT AS n, count(*)::INT AS n_all,
               median(price) FILTER (clean)::INT AS price, median(ppsqm)::INT AS ppsqm
@@ -57,6 +59,7 @@ export default async function CityPage({ params }: { params: Promise<{ code: str
        FROM tx WHERE loc = $code AND clean ORDER BY date DESC LIMIT 12`, { code }),
     qc<{ nature: string; n: number }>(
       `SELECT nature, count(*)::INT AS n FROM tx WHERE loc = $code AND clean AND ${recent} GROUP BY 1 ORDER BY n DESC`, { code }),
+    rentForCity(code),
   ]);
 
   const name = cityName(loc, lang);
@@ -113,6 +116,29 @@ export default async function CityPage({ params }: { params: Promise<{ code: str
       </div>
 
       <CityCharts yearly={yearly} rooms={rooms} hist={hist} name={name} />
+
+      {rent.length > 0 && (
+        <section className="section">
+          <div className="section-head">
+            <div>
+              <h2>{t(`Renting in ${name}`, `שכירות ב${name}`)}</h2>
+              <p>
+                {t(
+                  `Average monthly rent in ${fmtQuarter(rent[0].rent_q, lang)}, and the gross yield it gives on the median sale price of the same size over the last four quarters.`,
+                  `שכר הדירה החודשי הממוצע ב${fmtQuarter(rent[0].rent_q, lang)}, והתשואה ברוטו שהוא נותן על מחיר המכירה החציוני של דירות באותו גודל בארבעת הרבעונים האחרונים.`,
+                )}
+              </p>
+            </div>
+          </div>
+          <div className="panel flush"><div className="table-wrap"><RentTable rows={rent} lang={lang} t={t} /></div></div>
+          <p className="chart-note">
+            {t(
+              <>Rents: <a href={CBS_RENT_URL} target="_blank" rel="noreferrer">Central Bureau of Statistics</a>, Price Statistics Monthly, table 4.9. They average all leases in the CPI rent survey, not only new ones. Gross yield is before costs, vacancies and tax.</>,
+              <>שכר הדירה: <a href={CBS_RENT_URL} target="_blank" rel="noreferrer">הלשכה המרכזית לסטטיסטיקה</a>, ירחון סטטיסטיקה של מחירים, לוח 4.9. זהו ממוצע כל החוזים בסקר שכר הדירה של מדד המחירים לצרכן, לא רק חוזים חדשים. התשואה ברוטו היא לפני הוצאות, תקופות ללא שוכר ומס.</>,
+            )}
+          </p>
+        </section>
+      )}
 
       <div className="grid-2 section">
         <section>

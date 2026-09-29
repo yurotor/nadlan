@@ -56,3 +56,9 @@ export function cityName(c: { name_en?: string | null; name_he?: string | null }
   if (!c) return "";
   return (lang === "he" ? c.name_he || c.name_en : c.name_en || c.name_he) || "";
 }
+
+/** "Q2 2026" / "רבעון 2 2026" from the quarter's first day. */
+export function fmtQuarter(s: string, lang: Lang = "en") {
+  const q = Math.floor(Number(s.slice(5, 7)) / 3) + 1;
+  return lang === "he" ? `רבעון ${q} ${s.slice(0, 4)}` : `Q${q} ${s.slice(0, 4)}`;
+}

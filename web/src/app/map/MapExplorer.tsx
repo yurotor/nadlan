@@ -10,6 +10,7 @@ import { classLabel, natureLabel } from "@/lib/natures";
 import { useLang } from "@/components/LangProvider";
 import type { Lang, T } from "@/lib/i18n";
 import styles from "./map.module.css";
+import { ForSaleLegend, ForSalePanel, ListingCard, ListingGroup, diffColor, groupListings, useMyListings, useSnapshot, type Listing } from "./ForSale";
 
 const STYLE = {
   light: "https://tiles.openfreemap.org/styles/positron",
@@ -26,7 +27,8 @@ type Deal = {
   name_he: string | null; name_en: string | null;
 };
 
-const DEFAULTS = { from: "2021", to: "2026", kind: "homes", type: "", rooms: "", exact: "" };
+const DEFAULTS = { from: "2021", to: "2026", kind: "homes", type: "", rooms: "", exact: "", fs: "1" };
+const LISTING_LAYERS = ["fs-circle", "mine-circle"];
 
 function isDark() {
   const t = document.documentElement.dataset.theme;
@@ -52,7 +54,7 @@ function localizeLabels(m: MLMap, lang: Lang) {
     ? ["coalesce", ["get", "name:he"], ["get", "name"]]
     : ["coalesce", ["get", "name:en"], ["get", "name:latin"], ["get", "name"]];
   for (const l of m.getStyle()?.layers ?? []) {
-    if (l.type !== "symbol" || l.id.startsWith("deals")) continue;
+    if (l.type !== "symbol" || /^(deals|fs|mine)-/.test(l.id)) continue;
     const tf = m.getLayoutProperty(l.id, "text-field");
     if (!tf || JSON.stringify(tf).includes('"ref"')) continue;
     m.setLayoutProperty(l.id, "text-field", field);
@@ -76,6 +78,20 @@ export function MapExplorer({ focus }: { focus?: { lat: number; lon: number; z: 
   const [panelOpen, setPanelOpen] = useState<boolean | null>(null);
   const reqId = useRef(0);
   const filterRef = useRef(filterQs);
+  // Homes for sale: the local Yad2 snapshot and the user's own listings.
+  const snapshot = useSnapshot();
+  const mine = useMyListings();
+  const showSnapshot = !!snapshot?.available && state.fs === "1";
+  // A listing (kind + id, and the group it was opened from), or a group of listings sharing one point.
+  const [listingSel, setListingSel] = useState<{ kind: "yad2" | "mine"; id: string; group?: string } | { kind: "group"; key: string } | null>(null);
+  const [styleV, setStyleV] = useState(0);
+  const listings = useMemo<Listing[]>(
+    () => [...(showSnapshot ? (snapshot?.listings ?? []).map((l) => ({ ...l, kind: "yad2" as const })) : []), ...mine.listings],
+    [showSnapshot, snapshot, mine.listings],
+  );
+  const groups = useMemo(() => groupListings(listings), [listings]);
+  const listing = listingSel && listingSel.kind !== "group" ? listings.find((l) => l.kind === listingSel.kind && l.id === listingSel.id) ?? null : null;
+  const group = listingSel?.kind === "group" ? groups.find((g) => g.key === listingSel.key) ?? null : null;
   useEffect(() => { filterRef.current = filterQs; }, [filterQs]);
 
   const load = useCallback(async () => {
@@ -129,6 +145,30 @@ export function MapExplorer({ focus }: { focus?: { lat: number; lon: number; z: 
         layout: { "text-field": ["get", "label"], "text-size": 11, "text-font": ["Noto Sans Regular"], "text-allow-overlap": false },
         paint: { "text-color": ["get", "textColor"] },
       });
+      for (const [src, ring, width] of [["forsale", isDark() ? "#e8eef1" : "#1d2a33", 1.5], ["mine", "#eb6834", 3]] as const) {
+        m.addSource(src, { type: "geojson", data: { type: "FeatureCollection", features: [] } });
+        const layer = src === "forsale" ? "fs" : "mine";
+        m.addLayer({
+          id: `${layer}-circle`, type: "circle", source: src,
+          paint: {
+            "circle-radius": ["interpolate", ["linear"], ["zoom"],
+              9, ["*", ["get", "s"], src === "mine" ? 5 : 3], 13, ["*", ["get", "s"], src === "mine" ? 8 : 5.5], 16, ["*", ["get", "s"], src === "mine" ? 11 : 8.5]],
+            "circle-color": ["get", "color"],
+            "circle-stroke-color": ring,
+            "circle-stroke-width": width,
+          },
+        });
+        m.addLayer({
+          id: `${layer}-label`, type: "symbol", source: src, minzoom: 15,
+          layout: { "text-field": ["get", "label"], "text-size": 11, "text-font": ["Noto Sans Regular"], "text-offset": [0, -1.5], "text-allow-overlap": false },
+          paint: { "text-color": isDark() ? "#f2f5f7" : "#16202a", "text-halo-color": isDark() ? "#151b1f" : "#ffffff", "text-halo-width": 1.5 },
+        });
+        m.addLayer({  // number of listings in a group, inside its circle
+          id: `${layer}-count`, type: "symbol", source: src, minzoom: 12, filter: [">", ["get", "n"], 1],
+          layout: { "text-field": ["to-string", ["get", "n"]], "text-size": 11, "text-font": ["Noto Sans Regular"], "text-allow-overlap": true },
+          paint: { "text-color": ["get", "tc"] },
+        });
+      }
       m.addSource("sel", { type: "geojson", data: { type: "FeatureCollection", features: [] } });
       m.addLayer({
         id: "sel-ring", type: "circle", source: "sel",
@@ -141,14 +181,27 @@ export function MapExplorer({ focus }: { focus?: { lat: number; lon: number; z: 
       const pad = wide ? { left: rtl ? 60 : 380, right: rtl ? 380 : 60, top: 20, bottom: 20 } : 10;
       m.fitBounds([[34.25, 29.5], [35.9, 33.3]], { padding: pad, animate: false });
     }
-    m.on("load", () => { addLayers(); localizeLabels(m, langRef.current); load(); });
+    m.on("load", () => { addLayers(); localizeLabels(m, langRef.current); load(); setStyleV((v) => v + 1); });
     m.on("styledata", () => { if (m.isStyleLoaded()) addLayers(); });
     m.on("moveend", load);
     m.on("mouseenter", "deals-circle", () => (m.getCanvas().style.cursor = "pointer"));
     m.on("mouseleave", "deals-circle", () => (m.getCanvas().style.cursor = ""));
+    for (const id of LISTING_LAYERS) {
+      m.on("mouseenter", id, () => (m.getCanvas().style.cursor = "pointer"));
+      m.on("mouseleave", id, () => (m.getCanvas().style.cursor = ""));
+      m.on("click", id, (e: MapLayerMouseEvent) => {
+        const pr = e.features?.[0]?.properties as { kind: "yad2" | "mine"; id: string; key: string; n: number } | undefined;
+        if (!pr) return;
+        setSelected(null);
+        setListingSel(pr.n > 1 ? { kind: "group", key: pr.key } : { kind: pr.kind, id: pr.id });
+      });
+    }
     m.on("click", "deals-circle", (e: MapLayerMouseEvent) => {
       const f = e.features?.[0];
       if (!f) return;
+      // A listing drawn on top of a deal point takes the click.
+      if (m.queryRenderedFeatures(e.point, { layers: LISTING_LAYERS.filter((l) => m.getLayer(l)) }).length) return;
+      setListingSel(null);
       const pr = f.properties as { mode: string; lat: number; lon: number };
       if (pr.mode === "cells") {
         m.easeTo({ center: [pr.lon, pr.lat], zoom: Math.min(m.getZoom() + 2.5, POINT_ZOOM + 0.5) });
@@ -158,7 +211,7 @@ export function MapExplorer({ focus }: { focus?: { lat: number; lon: number; z: 
     });
     const retheme = () => {
       m.setStyle(isDark() ? STYLE.dark : STYLE.light);
-      m.once("idle", () => { addLayers(); localizeLabels(m, langRef.current); load(); });
+      m.once("idle", () => { addLayers(); localizeLabels(m, langRef.current); load(); setStyleV((v) => v + 1); });
     };
     window.addEventListener("themechange", retheme);
     return () => {
@@ -219,6 +272,36 @@ export function MapExplorer({ focus }: { focus?: { lat: number; lon: number; z: 
       }),
     });
   }, [resp]);
+
+  // Listings for sale: colour by asking price vs recent sales.
+  useEffect(() => {
+    const m = map.current;
+    if (!m) return;
+    // Listings that share a point (one building, or ads without a house number that Yad2 puts at the
+    // middle of their street or neighbourhood) are one marker: sized by count, coloured by their median.
+    const pct = (d: number | null) => (d == null ? "" : `${d > 0 ? "+" : d < 0 ? "−" : ""}${Math.abs(Math.round(d * 100))}%`);
+    for (const [src, kind] of [["forsale", "yad2"], ["mine", "mine"]] as const) {
+      (m.getSource(src) as GeoJSONSource | undefined)?.setData({
+        type: "FeatureCollection",
+        features: groups.filter((g) => g.kind === kind).map((g) => ({
+          type: "Feature",
+          geometry: { type: "Point", coordinates: [g.lon, g.lat] },
+          properties: {
+            kind, key: g.key, id: g.items[0].id, n: g.items.length, s: g.items.length > 1 ? Math.min(2, 1.25 + Math.sqrt(g.items.length) * 0.1) : 1,
+            color: diffColor(g.median), label: pct(g.median),
+            tc: ["#1a9850", "#d7301f", "#7d878d"].includes(diffColor(g.median)) ? "#ffffff" : "#16202a",
+          },
+        })),
+      });
+    }
+  }, [groups, styleV]);
+
+  const zoomToSnapshot = useCallback(() => {
+    const ls = snapshot?.listings;
+    if (!ls?.length || !map.current) return;
+    const lats = ls.map((l) => l.lat), lons = ls.map((l) => l.lon);
+    map.current.fitBounds([[Math.min(...lons), Math.min(...lats)], [Math.max(...lons), Math.max(...lats)]], { padding: 60 });
+  }, [snapshot]);
 
   // Selected location: ring + deals list.
   useEffect(() => {
@@ -311,11 +394,30 @@ export function MapExplorer({ focus }: { focus?: { lat: number; lon: number; z: 
               <input type="checkbox" checked={state.exact === "1"} onChange={(e) => set({ exact: e.target.checked ? "1" : "" })} />
               {t("Only deals with an exact parcel location", "רק עסקאות עם מיקום חלקה מדויק")}
             </label>
+            <ForSalePanel
+              snapshot={snapshot}
+              showSnapshot={showSnapshot}
+              setShowSnapshot={(v) => { set({ fs: v ? "1" : "0" }); if (v) zoomToSnapshot(); }}
+              onZoom={zoomToSnapshot}
+              onAdded={(placed) => {
+                const m = map.current;
+                if (!m || !placed.length) return;
+                if (placed.length === 1) {
+                  m.flyTo({ center: [placed[0].lon, placed[0].lat], zoom: Math.max(m.getZoom(), 16) });
+                  setSelected(null);
+                  setListingSel({ kind: "mine", id: placed[0].id });
+                } else {
+                  const lats = placed.map((l) => l.lat), lons = placed.map((l) => l.lon);
+                  m.fitBounds([[Math.min(...lons), Math.min(...lats)], [Math.max(...lons), Math.max(...lats)]], { padding: 80, maxZoom: 16 });
+                }
+              }}
+              mine={mine}
+            />
           </div>
         )}
       </section>
 
-      <section className={styles.legend} aria-label={t("Legend", "מקרא")} data-hidden={!!selected}>
+      <section className={styles.legend} aria-label={t("Legend", "מקרא")} data-hidden={!!selected || !!listing || !!group}>
         <div className={styles.legendRow}>
           <strong className="num">{fmtInt(total)}</strong>
           <span className="ink2">{zoomedIn ? t("deals at the locations in view", "עסקאות במיקומים שבתצוגה") : t("deals in view", "עסקאות בתצוגה")}</span>
@@ -339,8 +441,29 @@ export function MapExplorer({ focus }: { focus?: { lat: number; lon: number; z: 
             <span className="muted">{t("Circle size is the number of deals. Zoom in to see individual buildings.", "גודל העיגול הוא מספר העסקאות. אפשר להתקרב כדי לראות בניינים בודדים.")}</span>
           )}
         </div>
+        {listings.length > 0 && <ForSaleLegend />}
       </section>
 
+      {group && (
+        <ListingGroup
+          g={group}
+          onClose={() => setListingSel(null)}
+          onPick={(l) => setListingSel({ kind: l.kind, id: l.id, group: group.key })}
+        />
+      )}
+      {listing && (
+        <ListingCard
+          l={listing}
+          onBack={listingSel && listingSel.kind !== "group" && listingSel.group ? () => setListingSel({ kind: "group", key: (listingSel as { group: string }).group }) : undefined}
+          onClose={() => setListingSel(null)}
+          onRemove={mine.remove}
+          onShowSales={async () => {
+            const p = await fetch(`/api/map/nearest?lat=${listing.lat}&lon=${listing.lon}&${filterQs}`).then((r) => r.json());
+            setListingSel(null);
+            setSelected(p ?? { lat: listing.lat, lon: listing.lon });
+          }}
+        />
+      )}
       {selected && (
         <aside className={styles.drawer} aria-label={t("Deals at this location", "עסקאות במיקום זה")}>
           <div className={styles.drawerHead}>

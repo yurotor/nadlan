@@ -6,22 +6,27 @@ the inputs below into `data/` (not in git). Run it with `.venv/bin/python pipeli
 after replacing any input file (`--reload-deals` when only `deals.csv` changed). The build is deterministic:
 the same inputs give identical outputs, so a diff between two builds is a change in the data.
 
-## Refreshing the deals
+## Refreshing the deals and rents
 
 over.org.il re-scrapes the Tax Authority's deals system about once a week and publishes each changed
 snapshot as a new version. To pick one up:
 
 ```sh
-scripts/refresh.sh              # new version? download it, swap deals.csv, rebuild data/site.duckdb
+scripts/refresh.sh              # new deals or rents? fetch them and rebuild data/site.duckdb
 scripts/refresh-and-deploy.sh   # the same, then deploy the site to production (see web/README.md)
 ```
 
-Both do nothing when there is no new version (`refresh.sh` exits with status 3); `--rebuild` rebuilds
+Both do nothing when neither source has anything new (`refresh.sh` exits with status 3); `--rebuild` rebuilds
 (and deploys) anyway. `pipeline/refresh_deals.py` refuses a snapshot with over 1% fewer rows than the current
 file, because a scrape in progress publishes partial versions; `--allow-shrink` overrides that.
 `data/deals.version.json` records which version `deals.csv` came from, the previous file is kept as
 `data/deals.prev.csv`, and downloaded zips go to `data/deals_versions/`. New deals show up in the source
 weeks after signing and take about three months to be complete, so the last few months always look thin.
+
+Rents come from the Central Bureau of Statistics: `pipeline/fetch_cbs_rent.py` downloads table 4.9 of the
+newest Price Statistics Monthly (average rent by rooms for the 18 largest cities; figures change quarterly)
+into `data/src/cbs_rent.csv`, keeping earlier quarters. cbs.gov.il resets quick or non-browser requests, so
+it fetches one file at a time; if it fails, the refresh carries on with the rents already on disk.
 
 ## Inputs (`data/`)
 
@@ -31,11 +36,21 @@ weeks after signing and take about three months to be complete, so the last few 
 | `src/parcels/shape.csv.gz` | 1,097,775 current parcels with polygons and locality | over.org.il dataset `ff3176b1…` (Survey of Israel "חלקות shape"), version 9 zip |
 | `src/parcels/cancel/CANCEL_PARCEL.dbf` | 1.29M cancelled-parcel → replacement-parcel links | same zip |
 | `src/addresses/addresses.csv` | 686,707 addresses, 489K linked to a parcel | over.org.il dataset `88670e58…` (נדל"ן לעם addresses), version 22 zip |
+| `src/cbs_rent.csv` | CBS average rents by city and rooms, per quarter | `fetch_cbs_rent.py` (CBS Price Statistics Monthly, table 4.9) |
 | `src/gaztir.csv` | 3.65M properties (street per sub-parcel, property type) | גזטיר נכסים on odata.org.il (Google Drive file `1GkoEH7_…`) |
 
 The over.org.il "3.84M deals" figure double-counts rows that were appended twice (once without a
 locality code, once with). Version 5 is the de-duplicated snapshot and contains every row of the
 live table.
+
+## Demo: homes for sale (local only)
+
+`data/src/yad2/forsale_snapshot.json` is a one-time snapshot of Yad2 for-sale listings in Givatayim and Ramat
+Gan (29 Sep 2026, 1,078 listings; the map endpoint caps each answer, so it is a large sample, not every ad),
+saved from a normal browser session for a demo. `build_demo.py` turns it into `data/demo.duckdb`
+(`.venv/bin/python pipeline/build_demo.py`). The web app attaches that file when it exists and shows the
+listings on the map, each compared with recent sales. Deploys ship only `site.duckdb`, so the public site
+never carries the listings. Yad2's terms forbid automated collection, so this is not refreshed or extended.
 
 ## Outputs (`data/curated/`)
 
