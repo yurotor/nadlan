@@ -49,8 +49,8 @@ live table.
 Gan (29 Sep 2026, 1,078 listings; the map endpoint caps each answer, so it is a large sample, not every ad),
 saved from a normal browser session for a demo. `build_demo.py` turns it into `data/demo.duckdb`
 (`.venv/bin/python pipeline/build_demo.py`). The web app attaches that file when it exists and shows the
-listings on the map, each compared with recent sales. Deploys ship only `site.duckdb`, so the public site
-never carries the listings. Yad2's terms forbid automated collection, so this is not refreshed or extended.
+listings on the map, each compared with recent sales; deploys ship it too (`web/scripts/sync-db.sh`), so the
+deployed demo shows them publicly. Yad2's terms forbid automated collection, so this is not refreshed or extended.
 
 ## Outputs (`data/curated/`)
 

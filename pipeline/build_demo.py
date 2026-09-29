@@ -3,8 +3,8 @@
 Input:  data/src/yad2/forsale_snapshot.json  {"taken_at": ISO time, "items": [...]} saved from a browser session
 Output: data/demo.duckdb with table `forsale`, one row per listing.
 
-This file stays on this machine: the web app attaches it when it exists (web/src/lib/db.ts), and
-deploys only ship data/site.duckdb, so the public site never carries Yad2's listings.
+The web app attaches it when it exists (web/src/lib/db.ts), and web/scripts/sync-db.sh ships it with
+deploys, so the demo map shows the listings in production too.
 
 Area: Yad2 has an advertised size and a built size ("מ״ר בנוי"); the built size is closer to the
 registered area in the deals, so it is used when present.

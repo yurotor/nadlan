@@ -5,3 +5,5 @@ set -e
 cd "$(dirname "$0")/.."
 rm -rf data && mkdir -p data/parts
 split -b 90m ../data/site.duckdb data/parts/site.duckdb.part-
+# The Yad2 demo snapshot (small), when it has been built.
+if [ -f ../data/demo.duckdb ]; then cp ../data/demo.duckdb data/demo.duckdb; fi

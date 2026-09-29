@@ -124,8 +124,8 @@ export function ForSalePanel({
             {t(`Yad2 snapshot, ${fmtDate(snapshot.taken_at!, lang)}`, `צילום מצב של יד2, ${fmtDate(snapshot.taken_at!, lang)}`)}
             <span className={styles.hint}>
               {t(
-                `${fmtInt(snapshot.listings?.length)} listings in Givatayim and Ramat Gan. Local demo, not on the public site.`,
-                `${fmtInt(snapshot.listings?.length)} מודעות בגבעתיים וברמת גן. הדגמה מקומית, לא באתר הציבורי.`,
+                `${fmtInt(snapshot.listings?.length)} listings in Givatayim and Ramat Gan, taken once for this demo.`,
+                `${fmtInt(snapshot.listings?.length)} מודעות בגבעתיים וברמת גן, שנאספו פעם אחת לצורך ההדגמה.`,
               )}{" "}
               {showSnapshot && <button type="button" className={styles.linkBtn} onClick={onZoom}>{t("Zoom to them", "התקרבות אליהן")}</button>}
             </span>

@@ -7,9 +7,11 @@ import { DuckDBInstance, type DuckDBValue } from "@duckdb/node-api";
 const BUNDLED = path.resolve(process.cwd(), "data/site.duckdb");
 const DB_PATH = process.env.NADLAN_DB ?? (fs.existsSync(BUNDLED) ? BUNDLED : path.resolve(process.cwd(), "../data/site.duckdb"));
 
-// Local-only demo data (a one-time Yad2 for-sale snapshot, pipeline/build_demo.py). Deploys don't ship it,
-// so on the public site the for-sale layer is simply absent.
-const DEMO_PATH = process.env.NADLAN_DEMO_DB ?? path.resolve(/*turbopackIgnore: true*/ process.cwd(), "../data/demo.duckdb");
+// Demo data: a one-time Yad2 for-sale snapshot (pipeline/build_demo.py). Deploys ship a copy in web/data/
+// (scripts/sync-db.sh); without the file the for-sale snapshot layer is simply absent.
+const DEMO_BUNDLED = path.resolve(process.cwd(), "data/demo.duckdb");
+const DEMO_PATH = process.env.NADLAN_DEMO_DB
+  ?? (fs.existsSync(DEMO_BUNDLED) ? DEMO_BUNDLED : path.resolve(/*turbopackIgnore: true*/ process.cwd(), "../data/demo.duckdb"));
 export const hasDemo = fs.existsSync(/*turbopackIgnore: true*/ DEMO_PATH);
 
 const g = globalThis as unknown as { __nadlanDb?: Promise<DuckDBInstance> };
