@@ -9,8 +9,8 @@ const DB_PATH = process.env.NADLAN_DB ?? (fs.existsSync(BUNDLED) ? BUNDLED : pat
 
 // Local-only demo data (a one-time Yad2 for-sale snapshot, pipeline/build_demo.py). Deploys don't ship it,
 // so on the public site the for-sale layer is simply absent.
-const DEMO_PATH = process.env.NADLAN_DEMO_DB ?? path.resolve(process.cwd(), "../data/demo.duckdb");
-export const hasDemo = fs.existsSync(DEMO_PATH);
+const DEMO_PATH = process.env.NADLAN_DEMO_DB ?? path.resolve(/*turbopackIgnore: true*/ process.cwd(), "../data/demo.duckdb");
+export const hasDemo = fs.existsSync(/*turbopackIgnore: true*/ DEMO_PATH);
 
 const g = globalThis as unknown as { __nadlanDb?: Promise<DuckDBInstance> };
 

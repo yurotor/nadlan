@@ -39,8 +39,8 @@ The map's "Homes for sale" section has two sources, both compared with recent sa
 (asking ₪/m² against the median time-adjusted ₪/m² of comparable sales within 750 m, else the city):
 
 - **My listings**: added by hand or imported as CSV lines, stored in the browser (`localStorage`), placed on the
-  map from our deals' addresses by `/api/listings/compare`. Works on the deployed site too.
-- **Yad2 snapshot**: a local demo only. `/api/forsale` reads `../data/demo.duckdb` (see `pipeline/README.md`),
+  map from our deals' addresses by `/api/listings` (POST). Works on the deployed site too.
+- **Yad2 snapshot**: a local demo only. `/api/listings` (GET) reads `../data/demo.duckdb` (see `pipeline/README.md`),
   which `src/lib/db.ts` attaches when the file exists. It isn't deployed, so on Vercel the option doesn't appear.
 
 ## Languages

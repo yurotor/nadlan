@@ -1,8 +1,7 @@
 "use client";
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
-import type { ForSale } from "@/app/api/forsale/route";
-import type { Placed } from "@/app/api/listings/compare/route";
+import type { ForSale, Placed } from "@/app/api/listings/route";
 import { CityPicker } from "@/components/CityPicker";
 import { useLang } from "@/components/LangProvider";
 import { useLocalities, type Locality } from "@/lib/useLocalities";
@@ -53,7 +52,7 @@ export type MyInput = { id: string; loc: number; street: string; house: string; 
 /** The local Yad2 snapshot. Absent on deployed sites (the API answers available: false). */
 export function useSnapshot() {
   const [s, setS] = useState<{ available: boolean; taken_at?: string; listings?: ForSale[] } | null>(null);
-  useEffect(() => { fetch("/api/forsale").then((r) => r.json()).then(setS).catch(() => setS({ available: false })); }, []);
+  useEffect(() => { fetch("/api/listings").then((r) => r.json()).then(setS).catch(() => setS({ available: false })); }, []);
   return s;
 }
 
@@ -71,7 +70,7 @@ export function useMyListings() {
   const [placed, setPlaced] = useState<Map<string, Placed>>(new Map());
   const compare = useCallback(async (items: MyInput[]): Promise<Placed[]> => {
     if (!items.length) return [];
-    const r = await fetch("/api/listings/compare", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ items }) });
+    const r = await fetch("/api/listings", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ items }) });
     const { listings } = (await r.json()) as { listings: Placed[] };
     setPlaced((m) => { const n = new Map(m); for (const l of listings) n.set(l.id, l); return n; });
     return listings;

@@ -458,7 +458,7 @@ export function MapExplorer({ focus }: { focus?: { lat: number; lon: number; z: 
           onClose={() => setListingSel(null)}
           onRemove={mine.remove}
           onShowSales={async () => {
-            const p = await fetch(`/api/map/nearest?lat=${listing.lat}&lon=${listing.lon}&${filterQs}`).then((r) => r.json());
+            const p = await fetch(`/api/map/point?snap=1&lat=${listing.lat}&lon=${listing.lon}&${filterQs}`).then((r) => r.json());
             setListingSel(null);
             setSelected(p ?? { lat: listing.lat, lon: listing.lon });
           }}
