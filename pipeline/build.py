@@ -13,7 +13,7 @@ Outputs:
   data/curated/transactions.parquet   one row per sale (multi-row sales collapsed)
   data/curated/report.json       step-by-step counts
 
-Run:  .venv/bin/python pipeline/build.py [--reload-sources]
+Run:  .venv/bin/python pipeline/build.py [--reload-sources | --reload-deals]
 """
 
 import json
@@ -72,10 +72,14 @@ class Build:
         return [dict(zip(cols, r)) for r in cur.fetchall()]
 
 
-def load_sources(b):
-    print("loading sources")
+def load_deals(b):
     b.run("raw", f"""create or replace table raw as
         select * from read_csv('{DATA}/deals.csv', header=true, all_varchar=true)""")
+
+
+def load_sources(b):
+    print("loading sources")
+    load_deals(b)
     b.run("parcels", f"""create or replace table parcels as
         select try_cast(GUSH_NUM as int) gush, try_cast(GUSH_SUFFI as int) gush_suffix,
                try_cast(PARCEL as int) helka, try_cast(LEGAL_AREA as double) legal_area,
@@ -134,8 +138,9 @@ def step_geo(b):
     # One point per gush+helka. A handful exist under several gush suffixes; keep the largest.
     b.run("parcel_pt", """create or replace table parcel_pt as
         select gush, helka, count(*) n_suffix,
-               arg_max(locality_code, legal_area) filter (where locality_code > 0) locality_code,
-               arg_max(st_transform(centroid, 'EPSG:4326', 'EPSG:2039', always_xy := true), legal_area) pt
+               arg_max(locality_code, {a: legal_area, c: locality_code}) filter (where locality_code > 0) locality_code,
+               arg_max(st_transform(centroid, 'EPSG:4326', 'EPSG:2039', always_xy := true),
+                       {a: legal_area, s: gush_suffix}) pt
         from parcels group by 1, 2""")
     b.run("parcel_xy", """create or replace table parcel_xy as
         select gush, helka, n_suffix, locality_code, st_x(pt) x, st_y(pt) y from parcel_pt""")
@@ -154,14 +159,14 @@ def step_geo(b):
         with d as (select l.old_gush, l.old_helka, p.* from lineage_resolved l
                    join parcel_xy p using (gush, helka)),
         a as (select old_gush, old_helka, count(*) n_desc, avg(x) x, avg(y) y,
-                     mode(locality_code) locality_code,
+                     det_mode(list(locality_code)) locality_code,
                      any_value(gush) one_gush, any_value(helka) one_helka
               from d group by 1, 2)
         select a.*, (select max(sqrt((d.x-a.x)^2 + (d.y-a.y)^2)) from d
                      where d.old_gush = a.old_gush and d.old_helka = a.old_helka) spread_m
         from a""")
     b.run("gush_pt", """create or replace table gush_pt as
-        select gush, avg(x) x, avg(y) y, mode(locality_code) locality_code, count(*) n_parcels
+        select gush, avg(x) x, avg(y) y, det_mode(list(locality_code)) locality_code, count(*) n_parcels
         from parcel_xy group by 1""")
 
     b.run("deal_geo", """create or replace table deal_geo as
@@ -198,24 +203,24 @@ def step_locality(b):
                    from deals_base d join deal_geo g using (deal_id)
                    where d.src_settlement_code is not null and g.geo_locality_code is not null
                    group by 1, 2),
-        r as (select geo, arg_max(tax, n) tax, max(n) top, sum(n) total from m group by 1)
+        r as (select geo, arg_max(tax, {n: n, t: tax}) tax, max(n) top, sum(n) total from m group by 1)
         select geo, case when top >= 0.8 * total and total >= 20 then tax else geo end tax_code,
                top::double / total as share, total
         from r""")
     b.run("locality_names", """create or replace table locality_names as
         with t as (select src_settlement_code code, src_settlement as name, count(*) n
                    from deals_base where src_settlement_code is not null group by 1, 2),
-        p as (select locality_code code, mode(locality_name) as name from parcels
+        p as (select locality_code code, det_mode(list(locality_name)) as name from parcels
               where locality_code > 0 group by 1)
         select coalesce(t.code, p.code) code, coalesce(t.name, p.name) as name
-        from (select code, arg_max(name, n) as name from t group by 1) t
+        from (select code, arg_max(name, {n: n, name: name}) as name from t group by 1) t
         full join p on p.code = t.code""")
     # Former or merged localities that appear without a code, mapped by hand to today's
     # locality (checked against the parcel layer). Used before the coarse gush-level fallback.
     name_map = ",".join(f"('{k}', {v})" for k, v in NAME_MAP.items())
     b.run("deal_locality", f"""create or replace table deal_locality as
         with n as (  -- uncoded names that some coded row shares
-          select src_settlement as name, arg_max(src_settlement_code, n) code from (
+          select src_settlement as name, arg_max(src_settlement_code, {{n: n, c: src_settlement_code}}) code from (
             select src_settlement, src_settlement_code, count(*) n from deals_base
             where src_settlement_code is not null group by 1, 2) group by 1),
         m(name, code) as (values {name_map}),
@@ -263,7 +268,7 @@ def step_address(b):
                    left join parcel_xy p using (gush, helka)),
         s as (select gush, helka, street, house, house_num,
                      row_number() over (partition by gush, helka
-                        order by coalesce(sqrt((x-px)^2 + (y-py)^2), 1e9), house_num) rk
+                        order by coalesce(sqrt((x-px)^2 + (y-py)^2), 1e9), house_num, street, house) rk
               from a)
         select gush, helka,
                max(street) filter (where rk = 1) street,
@@ -273,11 +278,11 @@ def step_address(b):
                  filter (where rk <= 6) addresses_sample
         from s group by 1, 2""")
     b.run("gaz_sub", """create or replace table gaz_sub as
-        select gush, helka, sub_parcel, any_value(street) street, any_value(asset_type) asset_type,
+        select gush, helka, sub_parcel, min(street) street, min(asset_type) asset_type,
                max(floors) floors, min(building_year) building_year
         from gazetteer group by 1, 2, 3""")
     b.run("gaz_parcel", """create or replace table gaz_parcel as
-        select gush, helka, mode(street) street,
+        select gush, helka, det_mode(list(street)) street,
                count(*) filter (where asset_type like 'דירת מגורים%') n_dwellings,
                max(floors) floors
         from gazetteer group by 1, 2""")
@@ -300,8 +305,10 @@ def step_address(b):
         c as (select q.gush, q.helka, p.street, p.house,
                      sqrt((p.x - q.x)^2 + (p.y - q.y)^2) dist
               from q join pts p using (cx, cy))
-        select gush, helka, arg_min(street, dist) street, arg_min(house, dist) house, min(dist) dist
-        from c group by 1, 2 having min(dist) <= 100""")
+        select gush, helka, a.street, a.house, dist
+        from (select gush, helka, arg_min({street: street, house: house}, {d: dist, s: street, h: house}) a,
+                     min(dist) dist
+              from c group by 1, 2 having min(dist) <= 100)""")
     # Street for split old parcels: only when the descendants agree on one street.
     b.run("lineage_street", """create or replace table lineage_street as
         with s as (select l.old_gush, l.old_helka,
@@ -312,7 +319,7 @@ def step_address(b):
         c as (select old_gush, old_helka, street, count(*) n,
                      sum(count(*)) over (partition by old_gush, old_helka) total
               from s group by 1, 2, 3)
-        select old_gush, old_helka, arg_max(street, n) street, max(n)::double / max(total) as share
+        select old_gush, old_helka, arg_max(street, {n: n, s: street}) street, max(n)::double / max(total) as share
         from c where street is not null group by 1, 2
         having max(n) >= 0.8 * max(total)""")
     b.run("deal_address", """create or replace table deal_address as
@@ -389,7 +396,7 @@ def step_units(b):
     b.run("txn", """create or replace table txn as
         with f as (
           select t.txn_id, count(*) n_rows, count(distinct t.sub_parcel) n_subs,
-                 sum(t.portion_sold) portion_sum, min(t.portion_sold) portion_min,
+                 round(sum(t.portion_sold), 9) portion_sum, min(t.portion_sold) portion_min,
                  count(*) filter (where t.rooms is not null or t.area_sqm is not null) n_sized,
                  sum(t.amount_paid) amount_sum, max(t.declared_value) declared_max,
                  max(r.row_class) filter (where r.is_main_row) main_class,
@@ -503,12 +510,19 @@ def main():
     OUT.mkdir(parents=True, exist_ok=True)
     con = duckdb.connect(str(DATA / "nadlan.duckdb"))
     con.execute("install spatial; load spatial; set preserve_insertion_order=false;")
+    # Most frequent value, ties to the smallest. mode(), any_value() and arg_max() on a tie pick
+    # whichever row a thread saw first, which made rebuilds of the same input differ.
+    con.execute("""create or replace macro det_mode(l) as
+        (select v from unnest(l) t(v) where v is not null group by v order by count(*) desc, v limit 1)""")
     b = Build(con)
     have = {r[0] for r in con.execute("select table_name from information_schema.tables").fetchall()}
     if "--reload-sources" in sys.argv or not {"raw", "parcels", "addresses", "gazetteer", "parcel_lineage"} <= have:
         load_sources(b)
     elif "centroid" not in {r[0] for r in con.execute("describe parcels").fetchall()}:
         load_sources(b)  # older layout
+    elif "--reload-deals" in sys.argv:
+        print("loading deals")
+        load_deals(b)
     step_base(b)
     step_geo(b)
     step_locality(b)

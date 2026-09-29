@@ -3,13 +3,31 @@
 `build.py` turns the Tax Authority deals file (מיסוי מקרקעין, 1998–2026) into two analysis-ready
 tables. Setup: `python3 -m venv .venv && .venv/bin/pip install -r requirements.txt`, then download
 the inputs below into `data/` (not in git). Run it with `.venv/bin/python pipeline/build.py` (about 30 seconds). Add `--reload-sources`
-after replacing any input file.
+after replacing any input file (`--reload-deals` when only `deals.csv` changed). The build is deterministic:
+the same inputs give identical outputs, so a diff between two builds is a change in the data.
+
+## Refreshing the deals
+
+over.org.il re-scrapes the Tax Authority's deals system about once a week and publishes each changed
+snapshot as a new version. To pick one up:
+
+```sh
+scripts/refresh.sh              # new version? download it, swap deals.csv, rebuild data/site.duckdb
+scripts/refresh-and-deploy.sh   # the same, then deploy the site to production (see web/README.md)
+```
+
+Both do nothing when there is no new version (`refresh.sh` exits with status 3); `--rebuild` rebuilds
+(and deploys) anyway. `pipeline/refresh_deals.py` refuses a snapshot with over 1% fewer rows than the current
+file, because a scrape in progress publishes partial versions; `--allow-shrink` overrides that.
+`data/deals.version.json` records which version `deals.csv` came from, the previous file is kept as
+`data/deals.prev.csv`, and downloaded zips go to `data/deals_versions/`. New deals show up in the source
+weeks after signing and take about three months to be complete, so the last few months always look thin.
 
 ## Inputs (`data/`)
 
 | File | What | Where it came from |
 |---|---|---|
-| `deals.csv` | 3,217,592 deal rows | over.org.il dataset `fd06f5ae…`, version 5 zip (`/api/versions/b1c4856b…/download.zip`), files merged |
+| `deals.csv` | 3,217,592 deal rows (version 5) | over.org.il dataset `fd06f5ae…` (a weekly scrape of nadlan.taxes.gov.il), per-locality files of the newest version merged by `refresh_deals.py` |
 | `src/parcels/shape.csv.gz` | 1,097,775 current parcels with polygons and locality | over.org.il dataset `ff3176b1…` (Survey of Israel "חלקות shape"), version 9 zip |
 | `src/parcels/cancel/CANCEL_PARCEL.dbf` | 1.29M cancelled-parcel → replacement-parcel links | same zip |
 | `src/addresses/addresses.csv` | 686,707 addresses, 489K linked to a parcel | over.org.il dataset `88670e58…` (נדל"ן לעם addresses), version 22 zip |
@@ -40,8 +58,8 @@ Everything is also in `data/nadlan.duckdb`, including the intermediate tables.
 
 | Value | Street | House no. | Deals |
 |---|---|---|---|
-| `address_point` | ✓ | ✓ | 64.1% |
-| `gazetteer_subparcel` | ✓ | – | 6.2% |
+| `address_point` | ✓ | ✓ | 64.6% |
+| `gazetteer_subparcel` | ✓ | – | 5.7% |
 | `gazetteer_parcel` | ✓ | – | 0.8% |
 | `nearest_address` (≤100 m from parcel centre, see `nearest_address_dist_m`) | ✓ | ✓ approx. | 4.1% |
 | `lineage_street` (split parcel whose descendants ≥80% share one street) | ✓ | – | 0.2% |

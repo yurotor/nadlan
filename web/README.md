@@ -28,6 +28,8 @@ because `data/` isn't in git.
 vercel deploy                 # preview; add --prod for production
 ```
 
+`../scripts/refresh-and-deploy.sh` does both after refreshing the deals (see `pipeline/README.md`).
+
 On Vercel, `prebuild` (scripts/join-db.sh) joins the parts into `data/site.duckdb`, and `next.config.ts` adds
 that file and DuckDB's `libduckdb.so` to the traced function files. Neither is picked up automatically.
 
